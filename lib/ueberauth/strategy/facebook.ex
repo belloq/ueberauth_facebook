@@ -41,7 +41,8 @@ defmodule Ueberauth.Strategy.Facebook do
       |> Keyword.put(:redirect_uri, callback_url(conn))
       |> Ueberauth.Strategy.Facebook.OAuth.authorize_url!(opts)
 
-    redirect!(conn, authorize_url)
+    conn
+    |> put_private(:authorize_url, authorize_url)
   end
 
   @doc """
@@ -82,6 +83,7 @@ defmodule Ueberauth.Strategy.Facebook do
     conn
     |> put_private(:facebook_user, nil)
     |> put_private(:facebook_token, nil)
+    |> put_private(:authorize_url, nil)
   end
 
   @doc """
