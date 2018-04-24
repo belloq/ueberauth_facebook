@@ -41,8 +41,7 @@ defmodule Ueberauth.Strategy.Facebook do
       |> Keyword.put(:redirect_uri, callback_url(conn))
       |> Ueberauth.Strategy.Facebook.OAuth.authorize_url!(opts)
 
-    conn
-    |> put_private(:authorize_url, authorize_url)
+    put_private(conn, :authorize_url, authorize_url)
   end
 
   @doc """
@@ -71,6 +70,19 @@ defmodule Ueberauth.Strategy.Facebook do
       OAuth2.Error ->
         set_errors!(conn, [error("invalid_code", "The code has been used or has expired")])
     end
+  end
+
+  def handle_callback!(%Plug.Conn{params: %{"access_token" => access_token}} = conn) do
+    opts = oauth_client_options_from_conn(conn)
+    client = Ueberauth.Strategy.Facebook.OAuth.client
+    token = OAuth2.AccessToken.new(access_token)
+
+    config =
+      :ueberauth
+      |> Application.get_env(Ueberauth.Strategy.Facebook.OAuth, [])
+      |> Keyword.merge(opts)
+
+    fetch_user(conn, %{client | token: token}, config)
   end
 
   @doc false
@@ -158,12 +170,12 @@ defmodule Ueberauth.Strategy.Facebook do
     path = "/me?#{query}"
 
     case OAuth2.Client.get(client, path) do
-      {:ok, %OAuth2.Response{status_code: 401, body: _body}} ->
-        set_errors!(conn, [error("token", "unauthorized")])
-
       {:ok, %OAuth2.Response{status_code: status_code, body: user}}
       when status_code in 200..399 ->
         put_private(conn, :facebook_user, user)
+
+      {:error, %OAuth2.Response{status_code: 401, body: _body}} ->
+        set_errors!(conn, [error("token", "unauthorized")])
 
       {:error, %OAuth2.Error{reason: reason}} ->
         set_errors!(conn, [error("OAuth2", reason)])
